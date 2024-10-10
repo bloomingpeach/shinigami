@@ -6,7 +6,7 @@ use starknet::SyscallResultTrait;
 use starknet::secp256_trait::{Secp256Trait, Signature, is_valid_signature};
 use starknet::secp256k1::{Secp256k1Point};
 use crate::scriptflags::ScriptFlags;
-use shinigami_utils::byte_array::u256_from_byte_array_with_offset;
+use shinigami_utils::byte_array::{u256_from_byte_array_with_offset, sub_byte_array};
 use crate::signature::{sighash, constants};
 use crate::errors::Error;
 
@@ -58,7 +58,6 @@ impl BaseSigVerifierImpl<
         ref vm: Engine<T>, sig_bytes: @ByteArray, pk_bytes: @ByteArray
     ) -> Result<BaseSigVerifier, felt252> {
         let mut sub_script = vm.sub_script();
-        sub_script = remove_signature(sub_script, sig_bytes);
         let (pub_key, sig, hash_type) = parse_base_sig_and_pk(ref vm, pk_bytes, sig_bytes)?;
         Result::Ok(BaseSigVerifier { pub_key, sig, sig_bytes, pk_bytes, sub_script, hash_type })
     }
@@ -68,6 +67,7 @@ impl BaseSigVerifierImpl<
         let sig_hash: u256 = sighash::calc_signature_hash::<
             I, O, T
         >(@self.sub_script, self.hash_type, vm.transaction, vm.tx_idx);
+        println!("huhu");
 
         is_valid_signature(sig_hash, self.sig.r, self.sig.s, self.pub_key)
     }
@@ -120,7 +120,7 @@ pub fn check_hash_type_encoding<
     }
 
     if hash_type < constants::SIG_HASH_ALL || hash_type > constants::SIG_HASH_SINGLE {
-        return Result::Err('invalid hash type');
+        return Result::Err(Error::INVALID_HASH_TYPE);
     }
 
     return Result::Ok(());
@@ -177,7 +177,7 @@ pub fn check_signature_encoding<
         return Result::Err('invalid sig fmt: too short');
     }
     // Check if the signature is too long.
-    if sig_len > constants::MAX_SIG_LEN {
+    if sig_len > constants::MAX_SIG_LEN && strict_encoding {
         return Result::Err('invalid sig fmt: too long');
     }
     // Ensure the signature starts with the correct ASN.1 sequence identifier.
@@ -307,8 +307,9 @@ pub fn check_pub_key_encoding<
     }
 
     if !is_supported_pub_key_type(pk_bytes) {
-        return Result::Err('unsupported public key type');
+        return Result::Err(Error::UNSUPPORTED_PUBKEY_TYPE);
     }
+
 
     return Result::Ok(());
 }
@@ -394,6 +395,7 @@ pub fn parse_signature(sig_bytes: @ByteArray) -> Result<Signature, felt252> {
     if r_sig >= order {
         return Result::Err('invalid sig: R >= group order');
     }
+
     if r_sig == 0 {
         return Result::Err('invalid sig: R is zero');
     }
@@ -406,7 +408,7 @@ pub fn parse_signature(sig_bytes: @ByteArray) -> Result<Signature, felt252> {
     if s_sig == 0 {
         return Result::Err('invalid sig: S is zero');
     }
-    if sig_len != r_len + s_len + 6 {
+    if sig_len != r_len + s_len + 5 {
         return Result::Err('invalid sig: bad final length');
     }
     return Result::Ok(Signature { r: r_sig, s: s_sig, y_parity: false, });
@@ -439,9 +441,12 @@ pub fn parse_base_sig_and_pk<
         };
     }
 
+
     // TODO: strct encoding
     let hash_type_offset: usize = sig_bytes.len() - 1;
     let hash_type: u32 = sig_bytes[hash_type_offset].into();
+    let mut start: usize = 0;
+
     if let Result::Err(e) = check_hash_type_encoding(ref vm, hash_type) {
         return if verify_der {
             Result::Err(Error::SCRIPT_ERR_SIG_DER)
@@ -449,6 +454,7 @@ pub fn parse_base_sig_and_pk<
             Result::Err(e)
         };
     }
+
     if let Result::Err(e) = check_signature_encoding(ref vm, sig_bytes, strict_encoding) {
         return if verify_der {
             Result::Err(Error::SCRIPT_ERR_SIG_DER)
@@ -456,7 +462,6 @@ pub fn parse_base_sig_and_pk<
             Result::Err(e)
         };
     }
-
     if let Result::Err(e) = check_pub_key_encoding(ref vm, pk_bytes) {
         return if verify_der {
             Result::Err(Error::SCRIPT_ERR_SIG_DER)
@@ -473,7 +478,7 @@ pub fn parse_base_sig_and_pk<
             return Result::Err(e);
         },
     };
-
+    let sig_bytes = @sub_byte_array(sig_bytes, ref start, hash_type_offset);
     let sig = match parse_signature(sig_bytes) {
         Result::Ok(signature) => signature,
         Result::Err(e) => if verify_der {
@@ -482,7 +487,7 @@ pub fn parse_base_sig_and_pk<
             return Result::Err(e);
         },
     };
-
+    
     Result::Ok((pub_key, sig, hash_type))
 }
 

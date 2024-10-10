@@ -104,9 +104,15 @@ pub fn opcode_checksig<
 
     if res.is_err() {
         // TODO: Some errors can return an error code instead of pushing false?
-        if res.unwrap_err() == Error::SCRIPT_ERR_SIG_DER {
-            return Result::Err(Error::SCRIPT_ERR_SIG_DER);
-        };
+        let err = res.unwrap_err();
+        if err == Error::SCRIPT_ERR_SIG_DER {
+            return Result::Err(err);
+        } else if err == Error::UNSUPPORTED_PUBKEY_TYPE {
+            return Result::Err(err);
+        } else if err == Error::INVALID_HASH_TYPE {
+            return Result::Err(err);
+        }
+
         engine.dstack.push_bool(false);
         return Result::Ok(());
     }
@@ -114,9 +120,12 @@ pub fn opcode_checksig<
 
     if sig_verifier.verify(ref engine) {
         is_valid = true;
+
     } else {
         is_valid = false;
     }
+
+
     // else use BaseSigWitnessVerifier
     // let mut sig_verifier: BaseSigWitnessVerifier = BaseSigWitnessVerifierTrait::new(ref engine,
     // @full_sig_bytes, @pk_bytes)?;

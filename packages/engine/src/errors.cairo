@@ -28,6 +28,9 @@ pub mod Error {
     pub const SCRIPT_TOO_LARGE: felt252 = 'Script is too large';
     pub const SCRIPT_UNFINISHED: felt252 = 'Script unfinished';
     pub const SCRIPT_ERR_SIG_DER: felt252 = 'Signature DER error';
+    pub const UNSUPPORTED_PUBKEY_TYPE: felt252 = 'Unsupported public key type';
+    pub const INVALID_HASH_TYPE: felt252 = 'Invalid hash type';
+
 }
 
 pub fn byte_array_err(err: felt252) -> ByteArray {
