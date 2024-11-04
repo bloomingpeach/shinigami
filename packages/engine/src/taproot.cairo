@@ -5,7 +5,9 @@ use crate::transaction::{
 use crate::signature::signature::parse_schnorr_pub_key;
 use crate::signature::signature::{TaprootSigVerifierImpl};
 use starknet::secp256k1::{Secp256k1Point};
+use crate::hash_tag::{tagged_hash, HashTag};
 
+use shinigami_utils::maths::compare_bytes;
 #[derive(Destruct)]
 pub struct TaprootContext {
     pub annex: @ByteArray,
@@ -215,4 +217,11 @@ pub fn is_annexed_witness(witness: Span<ByteArray>, witness_len: usize) -> bool 
 
     let last_elem = witness[witness_len - 1];
     return last_elem.len() > 0 && last_elem[0] == TAPROOT_ANNEX_TAG;
+}
+
+pub fn tap_branch_hash(left: @ByteArray, right: @ByteArray) -> ByteArray {
+    if compare_bytes(left, right) > 0{
+        return tagged_hash(HashTag::TapBranch, @(right.clone() + left.clone()));
+    }
+    return tagged_hash(HashTag::TapBranch, @(left.clone() + right.clone()));
 }

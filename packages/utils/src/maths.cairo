@@ -41,3 +41,37 @@ pub fn fast_power<
         base = base * base;
     }
 }
+
+
+// Compare Bytes lexico-graphically
+pub fn compare_bytes(left: @ByteArray, right: @ByteArray) -> i32 {
+    let mut i = 0;
+    let mut j = 0;
+    let mut left_len = left.len();
+    let mut right_len= right.len();
+    let mut result: i32 = 0;
+    while i < left_len && j < right_len {
+        let left_byte: u8 = left[i];
+        let right_byte: u8 = right[j];
+
+        if left_byte < right_byte {
+            result = -1;
+        } else if left_byte > right_byte {
+            result = 1;
+        }
+
+        i += 1;
+        j += 1;
+    };
+    if result != 0 {
+        return result;
+    }
+
+    if left_len < right_len {
+        return -1;
+    } else if left_len > right_len {
+        return 1;
+    }
+
+    return result;
+}
